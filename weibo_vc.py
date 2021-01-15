@@ -11,7 +11,9 @@
 # Version control for weibos
 
 import os, hashlib, zlib, enum
-from logger import logger
+import logging
+
+logger = logging.getLogger(__name__)
 
 data_dir = "data"
 
@@ -34,6 +36,8 @@ class Weibo_VersionControl:
 		self.repo = weibo_dir
 		if not os.path.exists(weibo_dir):
 			os.mkdir(weibo_dir)
+			os.mkdir(os.path.join(weibo_dir, "img"))
+			os.mkdir(os.path.join(weibo_dir, "profile"))
 			os.mkdir(os.path.join(weibo_dir, "versions"))
 			for name in ['objects', 'refs', 'refs/heads']:
 				os.mkdir(os.path.join(weibo_dir, 'versions', name))

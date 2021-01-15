@@ -9,8 +9,13 @@
 # Copyright  © Rockface 2019 - 2021
 # --------------------------------------------------------------
 
-class Weibo:
+from typing import OrderedDict
+
+
+class Post:
     def __init__(self):
+        self.info = OrderedDict()
+        self.info['screen_name'] = ''
         self.id = ''
         self.user_id = ''
 
@@ -41,3 +46,19 @@ class Weibo:
         result += u'评论数：%d\n' % self.comment_num
         result += u'url：https://weibo.cn/comment/%s\n' % self.id
         return result
+
+class Weibo:
+    def __init__(self) -> None:
+        self.id = '' # Screen_name
+        self.user_id = ''
+        self.description = ''
+        self.follow_num = 0
+        self.follower_num = 0
+        self.gender = ''
+        self.verified = ''
+        self.close_blue_v = ''
+
+        # Images
+        self.avator_url = ''
+        self.cover_url = ''
+    
