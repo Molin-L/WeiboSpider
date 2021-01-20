@@ -10,12 +10,17 @@
 # --------------------------------------------------------------
 # Version control for weibos
 
-import os, hashlib, zlib, enum
+import os, hashlib, zlib, enum, collections, difflib
 import logging
 
 logger = logging.getLogger(__name__)
 
 data_dir = "data"
+
+IndexEntry = collections.namedtuple('IndexEntry', [
+    'ctime_s', 'ctime_n', 'mtime_s', 'mtime_n', 'dev', 'ino', 'mode', 'uid',
+    'gid', 'size', 'sha1', 'flags', 'path',
+])
 
 class ObjectType(enum.Enum):
     """Object type enum. There are other types too, but we don't need them.
@@ -36,7 +41,7 @@ class Weibo_VersionControl:
 		self.repo = weibo_dir
 		if not os.path.exists(weibo_dir):
 			os.mkdir(weibo_dir)
-			os.mkdir(os.path.join(weibo_dir, "img"))
+			os.mkdir(os.path.join(weibo_dir, "stage"))
 			os.mkdir(os.path.join(weibo_dir, "profile"))
 			os.mkdir(os.path.join(weibo_dir, "versions"))
 			for name in ['objects', 'refs', 'refs/heads']:
@@ -45,16 +50,16 @@ class Weibo_VersionControl:
 					b'ref: refs/heads/master')
 			logger.info("Initialize Empty Repository: %s"%self.uid)
 
-	def hash_object(self, data, obj_type, write=True):
-		header = '{} {}'.format(obj_type, len(data)).encode()
-		full_data = header + b'\x00' + data
-		sha1 = hashlib.sha1(full_data).hexdigest()
-		if write:
-			path = os.path.join(self.repo, 'objects', sha1[:2], sha1[2:])
-			if not os.path.exists(path):
-				os.makedirs(os.path.dirname(path), exist_ok=True)
-				write_file(path, zlib.compress(full_data))
-		return sha1
+def hash_object(repo_dir, data, obj_type, write=True):
+	header = '{} {}'.format(obj_type, len(data)).encode()
+	full_data = header + b'\x00' + data
+	sha1 = hashlib.sha1(full_data).hexdigest()
+	if write:
+		path = os.path.join(repo_dir, 'objects', sha1[:2], sha1[2:])
+		if not os.path.exists(path):
+			os.makedirs(os.path.dirname(path), exist_ok=True)
+			write_file(path, zlib.compress(full_data))
+	return sha1
 
 def read_file(path):
     """Read contents of file at given path as bytes."""
@@ -66,3 +71,6 @@ def write_file(path, data):
     """Write data bytes to file at given path."""
     with open(path, 'wb') as f:
         f.write(data)
+
+if __name__ == "__main__":
+	print(read_file("data/6170194660/stage/profile"))

@@ -56,6 +56,5 @@ class Downloader:
 		return files_path
 
 if __name__ == "__main__":
-	dl = Downloader()
-	urls = ["https://wx1.sinaimg.cn/orj480/006JzvuIly8gmeymt4ggaj30u00u0769.jpg", "https://tva1.sinaimg.cn/crop.0.0.640.640.640/9d44112bjw1f1xl1c10tuj20hs0hs0tw.jpg"]
-	dl.download_files(urls, "data/6170194660/img")
+	pass
+	
