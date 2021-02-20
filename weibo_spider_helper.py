@@ -12,7 +12,7 @@ from requests.api import post
 from downloader import Downloader
 from collections import OrderedDict
 from datetime import datetime, timedelta
-import traceback, json, requests, sqlite3, os, logging, sys
+import traceback, json, requests, sqlite3, os, logging, sys, time
 from cache import Post
 from lxml import etree
 import pandas as pd
@@ -42,33 +42,7 @@ class DBConnect:
 
 		self.stage_dir = os.path.join('data', self.uid, 'stage')
 
-	def updateProfile(self, info, uid):
-		avator_url = info['avatar_hd']
-		cover_url = info['cover_image_phone']
-		# Create folder for profile.
-		profile_dir = os.path.join(self.stage_dir, 'profile')
-		img_folder = os.path.join(profile_dir, 'img')
-		if not os.path.exists(img_folder):
-			os.makedirs(img_folder, exist_ok=True)
-		# Download image
-		dl = Downloader()
-		img_path = dl.download_files([avator_url, cover_url], img_folder)
-		# Save profile to disk.
-		profile_dict = dict()
-		profile_dict['id'] = info['id']
-		profile_dict['screen_name'] = info['screen_name']
-		profile_dict['description'] = info['description']
-		profile_dict['gender'] = info['gender']
-		profile_dict['verified'] = info['verified']
-		profile_dict['verified_type'] = info['verified_type']
-		profile_dict['close_blue_v'] = info['close_blue_v']
-		profile_dict['followers_count'] = info['followers_count']
-		profile_dict['follow_count'] = info['follow_count']
-		profile_dict['cover_image_phone'] = info['cover_image_phone']
-		profile_dict['avatar_hd'] = info['avatar_hd']
-		
-		profile_df = pd.DataFrame.from_dict([profile_dict])
-		profile_df.to_csv(os.path.join(profile_dir, 'profile.csv'))
+	def updateProfile(self, info, img_path, uid):
 		logger.info("User %s's profile has been saved to file: %s"%(uid, os.path.join(profile_dir, 'profile.csv')))
 		avator_img = self._convertToBinaryData(filename=img_path[0])
 		cover_img =  self._convertToBinaryData(filename=img_path[1])
@@ -97,14 +71,75 @@ class DBConnect:
 			blobData = file.read()
 		return blobData
 
+class CacheHandler:
+
+	def __init__(self) -> None:
+		self.cache_dir = os.path.join(os.path.curdir, 'data')
+	
+	def saveProfile(self, info, uid):
+		"""
+		Save Profile to workspace.
+
+		Args:
+			info ([type]): [description]
+			uid ([type]): [description]
+
+		Returns:
+			[DataFrame]: DataFrame of user's profile. 
+			[List]: A list of downloaded images. 
+		"""		
+		# Directory
+		user_dir = os.path.join(self.cache_dir, uid)
+		workspace_dir = os.path.join(user_dir, 'workspace')
+
+		# Create folder for profile.
+		profile_dir = os.path.join(workspace_dir, 'profile')
+		img_folder = os.path.join(profile_dir, 'img')
+		if not os.path.exists(img_folder):
+			os.makedirs(img_folder, exist_ok=True)
+		
+		avator_url = info['avatar_hd']
+		cover_url = info['cover_image_phone']
+		
+		# Download image
+		dl = Downloader()
+		img_path = dl.download_files([avator_url, cover_url], img_folder)
+		# Save profile to disk.
+		profile_dict = dict()
+		profile_dict['id'] = info['id']
+		profile_dict['screen_name'] = info['screen_name']
+		profile_dict['description'] = info['description']
+		profile_dict['gender'] = info['gender']
+		profile_dict['verified'] = info['verified']
+		profile_dict['verified_type'] = info['verified_type']
+		profile_dict['close_blue_v'] = info['close_blue_v']
+		profile_dict['followers_count'] = info['followers_count']
+		profile_dict['follow_count'] = info['follow_count']
+		profile_dict['cover_image_phone'] = info['cover_image_phone']
+		profile_dict['avatar_hd'] = info['avatar_hd']
+		
+		profile_df = pd.DataFrame.from_dict([profile_dict])
+		profile_df.to_csv(os.path.join(profile_dir, 'profile.csv'))
+		return img_path
+		
 def _get_json(params):
 	url = 'https://m.weibo.cn/api/container/getIndex?'
 	r = requests.get(url, params=params)
 	return r.json()
 
 def get_userinfo(uid):
+	"""
+	Get user's profile using m.weibo.cn/api.
+
+	Args:
+		uid (str): User id from Weibo.
+
+	Returns:
+		Json: User's profile.
+	"""	
 	params = {'containerid': '100505' + str(uid)}
 	js = _get_json(params)
+	
 	if js['ok']:
 		info = js['data']['userInfo']
 		if info.get('toolbar_menus'):
@@ -141,20 +176,23 @@ def read_post(info):
 	weibo_id = weibo_info['id']
 	retweeted_status = weibo_info.get('retweeted_status')
 	is_long = weibo_info['isLongText']
+	weibo = parse_weibo(weibo_info)
 	if retweeted_status:  # 转发
 		retweet_id = retweeted_status['id']
-		is_long_retweet = retweeted_status['isLongText']
-		if is_long:
-			weibo = read_long_weibo(weibo_id)
-		else:
-			weibo = parse_weibo(weibo_info)
-		if is_long_retweet:
-			retweet = read_long_weibo(retweet_id)
-		else:
-			retweet = parse_weibo(retweeted_status)
-		retweet['created_at'] = standardize_date(
-			retweeted_status['created_at'])
-		return weibo, retweet
+
+		if retweeted_status['text']!="抱歉，作者已设置仅展示半年内微博，此微博已不可见。 ":
+			is_long_retweet = retweeted_status['isLongText']
+			if is_long:
+				weibo = read_long_weibo(weibo_id)
+			else:
+				weibo = parse_weibo(weibo_info)
+			if is_long_retweet:
+				retweet = read_long_weibo(retweet_id)
+			else:
+				retweet = parse_weibo(retweeted_status)
+			retweet['created_at'] = standardize_date(
+				retweeted_status['created_at'])
+			return weibo, retweet
 	else:  # 原创
 		if is_long:
 			weibo = read_long_weibo(weibo_id)
@@ -225,6 +263,7 @@ def parse_weibo(weibo_info):
 	weibo['reposts_count'] = string_to_int(
 		weibo_info['reposts_count'])
 	weibo['at_users'] = get_at_users(selector)
+	weibo['post_id'] = weibo_info['id']
 	return standardize_info(weibo)
 
 def get_pics(weibo_info):
@@ -270,7 +309,31 @@ def string_to_int(string):
 	elif string.endswith(u'万'):
 		string = int(string[:-1] + '0000')
 	return int(string)
+def gettimestr():
+    t = time.time()
+    timestr = str(int(round(t * 1000)))
+    return timestr
+
+def get_cookie():
+	with open("cookies.json","r") as f:
+			cookies = json.load(f)
+	return cookies
+
+def like_wb(cookie, post_id):
+	s = requests.session()
+	s.keep_alive = False
+	postheader = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/80.0.3987.132 Safari/537.36','Content-Type': 'application/x-www-form-urlencoded; Charset=UTF-8','Accept': '*/*','Accept-Language': 'zh-cn','Referer': 'https://weibo.com/'}
+	
+	mid = post_id
+	posttime = gettimestr()
+	posturl = "https://weibo.com/aj/v6/like/add?ajwvr=6&__rnd=" + posttime
+	postdata = "location=page_100206_single_weibo&version=mini&qid=heart&mid=" + mid + "&loc=profile&cuslike=1&hide_multi_attitude=1&liked=0&_t=0"
+	response = s.post(posturl,data=postdata,headers=postheader,cookies=cookie,timeout=5)
+	code = response.json()['code']
+	if (code == '100000'):
+		print("点赞成功")
+	else:
+		print("点赞失败")
 if __name__ == "__main__":
-	uid = "6170194660"
-	print(get_userinfo("6170194660"))
-	#print(read_weibo_page((uid, 1)))
+	uid = "3196393410"
+	print(read_weibo_page((uid, 1)))

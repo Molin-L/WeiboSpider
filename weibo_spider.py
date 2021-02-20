@@ -22,22 +22,29 @@ class SingleWeiboSpider():
 	
 		self.uid = uid
 		# Initialize version control for a single user.
-		self.vc = weibo_vc.Weibo_VersionControl(uid)
+		self.vc = weibo_vc.VersionControl(uid)
 
 		# Connect to and initialize local database
 		self.data_path = os.path.join('data', uid)
 		self.db = weibo_spider_helper.DBConnect()
 		self.db.initUser(self.uid)
+		self.cache_handler = weibo_spider_helper.CacheHandler()
 	
 	def update_userprofile(self):
 		user_profile = weibo_spider_helper.get_userinfo(self.uid)
 		self.user_profile = user_profile
+		posts, page = weibo_spider_helper.read_weibo_page((self.uid, 1))
+		# 5669280306
+		# first_post = posts[0]['post_id']
+		# weibo_spider_helper.like_wb(weibo_spider_helper.get_cookie(), first_post)
 		# Calculate pages number
 		self.posts_num = user_profile['statuses_count']
 		self.pages_num = int(math.ceil(self.posts_num / 10.0))
 
 		# Update database
-		self.db.updateProfile(user_profile, self.uid)
+		img_path = self.cache_handler.saveProfile(user_profile, self.uid)
+		self.db.updateProfile(user_profile, img_path, self.uid)
+
 
 	def update_post(self):
 		# Concurrent get
@@ -52,6 +59,8 @@ class SingleWeiboSpider():
 			posts.append(posts_page)
 		pool.close()
 		pool.join()
+
+		posts = [i for i in posts if i!=None]
 
 		posts.sort(key=lambda x: x[1])
 		all_post = []
@@ -76,6 +85,6 @@ if __name__ == "__main__":
 		filename="Log/"+time+".log",
 		filemode='a',
 		format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-	job = SingleWeiboSpider("6170194660")
+	job = SingleWeiboSpider("5669280306")
 	job.update_userprofile()
 	job.update_post()
