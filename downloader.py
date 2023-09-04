@@ -30,9 +30,10 @@ def download_one_file(params):
 			with open(file_path, 'wb') as f:
 				f.write(downloaded.content)
 	except Exception as e:
-		error_file = damaged_folder + os.sep + 'not_downloaded.txt'
-		with open(error_file, 'ab') as f:
+		error_file = os.path.join(damaged_folder, 'not_downloaded.txt')
+		with open(error_file, 'a') as f:
 			f.write(url.encode(sys.stdout.encoding))
+			f.write("\n")
 		logger.exception(e)
 class Downloader:
 	def __init__(self) -> None:
@@ -45,6 +46,8 @@ class Downloader:
 		except NotImplementedError:
 			workers = 1
 		pool = Pool(processes=workers)
+		if not os.path.exists(data_folder):
+			os.makedirs(data_folder)
 		files_path = []
 		for i in range(len(urls)):
 			file_path = os.path.join(data_folder, urls[i].split("/")[-1])
